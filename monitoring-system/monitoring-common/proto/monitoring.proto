@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package monitoring;
+
+service MonitoringCollector {
+  rpc IngestStream(stream Batch) returns (stream IngestResponse);
+  rpc IngestBatch(Batch) returns (IngestResponse);
+}
+
+message Batch {
+  string batch_id = 1;
+  string agent_id = 2;
+  string hostname = 3;
+  int64 timestamp = 4;
+  uint32 event_count = 5;
+  CompressionType compression = 6;
+  bytes compressed_data = 7;
+  string checksum = 8;
+}
+
+message IngestResponse {
+  string batch_id = 1;
+  IngestStatus status = 2;
+  optional string error_message = 3;
+  int64 received_at = 4;
+}
+
+enum CompressionType {
+  NONE = 0;
+  SNAPPY = 1;
+  LZ4 = 2;
+  GZIP = 3;
+}
+
+enum IngestStatus {
+  SUCCESS = 0;
+  PARTIAL_SUCCESS = 1;
+  FAILED = 2;
+  REJECTED = 3;
+}

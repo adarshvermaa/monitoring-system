@@ -1,0 +1,33 @@
+[Unit]
+Description=Monitoring Collector Server
+Documentation=https://github.com/yourorg/monitoring-system
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=monitoring-collector
+Group=monitoring-collector
+ExecStart=/usr/local/bin/monitoring-collector --config /etc/monitoring/collector.toml
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/monitoring-collector
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=1024
+
+# Environment
+Environment="JWT_SECRET=your-jwt-secret-here"
+Environment="RUST_LOG=info"
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,150 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: monitoring-agent
+  namespace: monitoring
+  labels:
+    app: monitoring-agent
+spec:
+  selector:
+    matchLabels:
+      app: monitoring-agent
+  template:
+    metadata:
+      labels:
+        app: monitoring-agent
+    spec:
+      serviceAccountName: monitoring-agent
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: agent
+        image: monitoring-agent:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true  # Required for packet capture
+          capabilities:
+            add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_PTRACE
+        env:
+        - name: MONITORING_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-secrets
+              key: auth-token
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        volumeMounts:
+        - name: config
+          mountPath: /etc/monitoring
+          readOnly: true
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: etcmachineid
+          mountPath: /etc/machine-id
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: config
+        configMap:
+          name: monitoring-agent-config
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: etcmachineid
+        hostPath:
+          path: /etc/machine-id
+          type: File
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-agent-config
+  namespace: monitoring
+data:
+  agent.toml: |
+    [agent]
+    id = "k8s-node"
+    hostname = ""
+    tags = ["env:production", "platform:kubernetes"]
+
+   [collector]
+    endpoint = "ws://monitoring-collector:8080/ingest"
+    auth_token = "${MONITORING_AUTH_TOKEN}"
+    
+    [buffer]
+    max_events = 10000
+    flush_interval_secs = 60
+    max_batch_size = 1000
+    compression = "snappy"
+    
+    [collectors.logs]
+    enabled = true
+    files = ["/var/log/pods/**/*.log", "/var/log/containers/**/*.log"]
+    journald_units = []
+    
+    [collectors.metrics]
+    enabled = true
+    system_interval_secs = 10
+    prometheus_endpoints = []
+    include_process_metrics = false
+    
+    [collectors.traffic]
+    enabled = false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: monitoring-secrets
+  namespace: monitoring
+type: Opaque
+stringData:
+  auth-token: "your-auth-token-here"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: monitoring-agent
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-agent
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - pods
+  - services
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: monitoring-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: monitoring-agent
+subjects:
+- kind: ServiceAccount
+  name: monitoring-agent
+  namespace: monitoring

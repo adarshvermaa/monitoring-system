@@ -1,0 +1,47 @@
+# Multi-stage Dockerfile for Monitoring Collector
+FROM rust:1.75-slim as builder
+
+WORKDIR /build
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files
+COPY monitoring-common ./monitoring-common
+COPY monitoring-collector ./monitoring-collector
+
+# Build collector
+WORKDIR /build/monitoring-collector
+RUN cargo build --release
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create user
+RUN useradd -r -s /bin/false monitoring-collector
+
+# Copy binary
+COPY --from=builder /build/monitoring-collector/target/release/monitoring-collector /usr/local/bin/
+
+# Copy default config
+COPY config/collector.toml /etc/monitoring/collector.toml
+
+# Set ownership
+RUN chown -R monitoring-collector:monitoring-collector /etc/monitoring
+
+USER monitoring-collector
+WORKDIR /home/monitoring-collector
+
+EXPOSE 8080 9090
+
+ENTRYPOINT ["/usr/local/bin/monitoring-collector"]
+CMD ["--config", "/etc/monitoring/collector.toml"]

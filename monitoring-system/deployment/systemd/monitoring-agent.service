@@ -1,0 +1,32 @@
+[Unit]
+Description=Monitoring Agent
+Documentation=https://github.com/yourorg/monitoring-system
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=monitoring
+Group=monitoring
+ExecStart=/usr/local/bin/monitoring-agent --config /etc/monitoring/agent.toml
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log /var/lib/monitoring
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=512
+
+# Environment
+Environment="MONITORING_AUTH_TOKEN=your-token-here"
+
+[Install]
+WantedBy=multi-user.target

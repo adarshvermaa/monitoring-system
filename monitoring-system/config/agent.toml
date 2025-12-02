@@ -1,0 +1,52 @@
+# Monitoring Agent Configuration
+
+[agent]
+id = "agent-001"
+hostname = ""  # Auto-detected if empty
+tags = ["env:production", "region:us-east", "datacenter:dc1"]
+
+[collector]
+endpoint = "ws://localhost:8080/ingest"
+# grpc_endpoint = "http://localhost:9090"
+auth_token = "${MONITORING_AUTH_TOKEN}"
+# tls_ca_cert = "/etc/monitoring/ca.pem"
+# client_cert = "/etc/monitoring/client.pem"
+# client_key = "/etc/monitoring/client-key.pem"
+connect_timeout_secs = 30
+request_timeout_secs = 60
+
+[buffer]
+max_events = 10000
+flush_interval_secs = 60
+max_batch_size = 1000
+compression = "snappy"  # Options: snappy, lz4, gzip, none
+
+[collectors.logs]
+enabled = true
+files = [
+    "/var/log/app/*.log",
+    "/var/log/nginx/*.log",
+    "/var/log/syslog"
+]
+journald_units = [
+    "nginx.service",
+    "app.service",
+    "docker.service"
+]
+exclude_patterns = [".gz$", ".zip$"]
+
+[collectors.metrics]
+enabled = true
+system_interval_secs = 10
+prometheus_endpoints = [
+    "http://localhost:9090/metrics",
+    "http://localhost:8080/metrics"
+]
+include_process_metrics = true
+
+[collectors.traffic]
+enabled = false
+interface = "eth0"  # Leave empty for auto-detection
+protocols = ["http", "https", "tcp"]
+sample_rate = 0.1  # Sample 10% of traffic
+capture_payload = false

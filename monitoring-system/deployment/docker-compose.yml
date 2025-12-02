@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  collector:
+    build:
+      context: ..
+      dockerfile: deployment/docker/Dockerfile.collector
+    container_name: monitoring-collector
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - JWT_SECRET=dev-secret-key-change-in-production
+      - RUST_LOG=info
+    volumes:
+      - ../config/collector.toml:/etc/monitoring/collector.toml:ro
+    networks:
+      - monitoring
+
+  agent:
+    build:
+      context: ..
+      dockerfile: deployment/docker/Dockerfile.agent
+    container_name: monitoring-agent
+    environment:
+      - MONITORING_AUTH_TOKEN=dev-token
+      - RUST_LOG=info
+    volumes:
+      - ../config/agent.toml:/etc/monitoring/agent.toml:ro
+      - /var/log:/var/log:ro
+    depends_on:
+      - collector
+    networks:
+      - monitoring
+    # Uncomment for packet capture
+    # cap_add:
+    #   - NET_ADMIN
+    #   - NET_RAW
+    # network_mode: host
+
+networks:
+  monitoring:
+    driver: bridge

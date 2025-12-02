@@ -1,0 +1,23 @@
+# Monitoring Collector Configuration
+
+[server]
+websocket_addr = "0.0.0.0:8080"
+# grpc_addr = "0.0.0.0:9090"
+# tls_cert = "/etc/collector/server.pem"
+# tls_key = "/etc/collector/server-key.pem"
+# mtls_ca_cert = "/etc/collector/ca.pem"
+
+[auth]
+mode = "token"  # Options: token, mtls, hybrid
+token_secret = "${JWT_SECRET}"
+
+[storage]
+backend = "console"  # Options: console, clickhouse, postgres, s3
+# clickhouse_url = "tcp://localhost:9000"
+# postgres_url = "postgres://user:pass@localhost/monitoring"
+# s3_bucket = "monitoring-data"
+# s3_region = "us-east-1"
+
+[processor]
+workers = 4
+batch_size = 1000

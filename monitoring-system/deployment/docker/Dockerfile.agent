@@ -1,0 +1,49 @@
+# Multi-stage Dockerfile for Monitoring Agent
+FROM rust:1.75-slim as builder
+
+WORKDIR /build
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libsystemd-dev \
+    libpcap-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files
+COPY monitoring-common ./monitoring-common
+COPY monitoring-agent ./monitoring-agent
+
+# Build agent
+WORKDIR /build/monitoring-agent
+RUN cargo build --release --features journald,pcap-capture
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    libsystemd0 \
+    libpcap0.8 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create monitoring user
+RUN useradd -r -s /bin/false monitoring
+
+# Copy binary
+COPY --from=builder /build/monitoring-agent/target/release/monitoring-agent /usr/local/bin/
+
+# Copy default config
+COPY config/agent.toml /etc/monitoring/agent.toml
+
+# Set ownership
+RUN chown -R monitoring:monitoring /etc/monitoring
+
+USER monitoring
+WORKDIR /home/monitoring
+
+ENTRYPOINT ["/usr/local/bin/monitoring-agent"]
+CMD ["--config", "/etc/monitoring/agent.toml"]

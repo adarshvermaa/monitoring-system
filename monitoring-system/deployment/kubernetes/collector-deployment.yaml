@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitoring-collector
+  namespace: monitoring
+  labels:
+    app: monitoring-collector
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: monitoring-collector
+  template:
+    metadata:
+      labels:
+        app: monitoring-collector
+    spec:
+      containers:
+      - name: collector
+        image: monitoring-collector:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: websocket
+          containerPort: 8080
+          protocol: TCP
+        - name: grpc
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-secrets
+              key: jwt-secret
+        - name: RUST_LOG
+          value: "info"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/monitoring
+          readOnly: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: monitoring-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring-collector
+  namespace: monitoring
+spec:
+  selector:
+    app: monitoring-collector
+  ports:
+  - name: websocket
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: grpc
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-collector-config
+  namespace: monitoring
+data:
+  collector.toml: |
+    [server]
+    websocket_addr = "0.0.0.0:8080"
+    grpc_addr = "0.0.0.0:9090"
+    
+    [auth]
+    mode = "token"
+    token_secret = "${JWT_SECRET}"
+    
+    [storage]
+    backend = "console"
+    
+    [processor]
+    workers = 4
+    batch_size = 1000
