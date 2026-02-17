@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { Line, Area, AreaChart, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { apiService } from '../services/api';
-import type { DashboardStats } from '../types';
 import './DashboardOverview.css';
 
 const StatCard = ({ title, value, change, icon: Icon, trend }: any) => (

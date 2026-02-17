@@ -1,5 +1,5 @@
 import { config } from '../config';
-import type { Event, LogEvent, MetricEvent, TrafficEvent, DashboardStats, Agent } from '../types';
+import type { LogEvent, MetricEvent, TrafficEvent, DashboardStats, Agent } from '../types';
 
 class WebSocketService {
     private ws: WebSocket | null = null;
@@ -103,32 +103,12 @@ export const wsService = new WebSocketService();
 
 // API Service for HTTP requests
 class ApiService {
-    private async fetch(endpoint: string, options?: RequestInit) {
-        const token = localStorage.getItem('auth-token');
-        const headers = {
-            'Content-Type': 'application/json',
-            ...(token && { 'Authorization': `Bearer ${token}` }),
-            ...options?.headers,
-        };
-
-        const response = await fetch(`${config.apiBaseUrl}${endpoint}`, {
-            ...options,
-            headers,
-        });
-
-        if (!response.ok) {
-            throw new Error(`API error: ${response.statusText}`);
-        }
-
-        return response.json();
-    }
-
     async checkHealth(): Promise<{ status: string; }> {
         const response = await fetch(config.healthUrl);
         return response.text().then(status => ({ status }));
     }
 
-    async login(username: string, password: string) {
+    async login(username: string, _password: string) {
         // Mock login - replace with actual API call
         return {
             token: 'mock-jwt-token',
@@ -189,7 +169,7 @@ class ApiService {
         ];
     }
 
-    async getLogs(params?: any): Promise<LogEvent[]> {
+    async getLogs(_params?: any): Promise<LogEvent[]> {
         // Mock data
         return Array.from({ length: 50 }, (_, i) => ({
             timestamp: Date.now() - i * 60000,
@@ -201,7 +181,7 @@ class ApiService {
         }));
     }
 
-    async getMetrics(params?: any): Promise<MetricEvent[]> {
+    async getMetrics(_params?: any): Promise<MetricEvent[]> {
         // Mock data
         return Array.from({ length: 50 }, (_, i) => ({
             timestamp: Date.now() - i * 10000,
@@ -213,7 +193,7 @@ class ApiService {
         }));
     }
 
-    async getTraffic(params?: any): Promise<TrafficEvent[]> {
+    async getTraffic(_params?: any): Promise<TrafficEvent[]> {
         // Mock data
         return Array.from({ length: 30 }, (_, i) => ({
             timestamp: Date.now() - i * 5000,

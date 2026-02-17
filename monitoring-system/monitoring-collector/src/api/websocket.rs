@@ -1,20 +1,78 @@
+use crate::auth::TokenValidator;
+use crate::config::CollectorConfig;
+use crate::processor::BatchProcessor;
 use axum::{
-    extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade},
-    response::Response,
+    extract::{
+        ws::{Message, WebSocket},
+        Query, State, WebSocketUpgrade,
+    },
+    http::{header::AUTHORIZATION, HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
 };
 use futures_util::{SinkExt, StreamExt};
 use monitoring_common::{Batch, IngestResponse, IngestStatus};
-use crate::config::CollectorConfig;
-use crate::processor::BatchProcessor;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 pub async fn handle_websocket(
     ws: WebSocketUpgrade,
+    headers: HeaderMap,
+    query: Option<Query<std::collections::HashMap<String, String>>>,
     State(config): State<CollectorConfig>,
 ) -> Response {
+    if let Err(status) = authorize_request(&headers, query.as_ref(), &config) {
+        return status.into_response();
+    }
+
     ws.on_upgrade(|socket| handle_socket(socket, config))
 }
 
+fn authorize_request(
+    headers: &HeaderMap,
+    query: Option<&Query<std::collections::HashMap<String, String>>>,
+    config: &CollectorConfig,
+) -> Result<(), StatusCode> {
+    if !matches!(config.auth.mode.as_str(), "token" | "hybrid") {
+        return Ok(());
+    }
+
+    let secret = config
+        .auth
+        .token_secret
+        .as_ref()
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let token = extract_bearer_token(headers)
+        .or_else(|| extract_query_token(query))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let validator = TokenValidator::new(secret.clone());
+    validator
+        .validate_token(token)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    Ok(())
+}
+
+fn extract_bearer_token(headers: &HeaderMap) -> Option<&str> {
+    let value = headers.get(AUTHORIZATION)?.to_str().ok()?;
+    let token = value.strip_prefix("Bearer ")?.trim();
+
+    if token.is_empty() {
+        None
+    } else {
+        Some(token)
+    }
+}
+
+fn extract_query_token(
+    query: Option<&Query<std::collections::HashMap<String, String>>>,
+) -> Option<&str> {
+    query?
+        .0
+        .get("token")
+        .map(String::as_str)
+        .filter(|token| !token.trim().is_empty())
+}
 async fn handle_socket(socket: WebSocket, config: CollectorConfig) {
     info!("New WebSocket connection established");
 
@@ -25,7 +83,7 @@ async fn handle_socket(socket: WebSocket, config: CollectorConfig) {
         match msg {
             Ok(Message::Text(text)) => {
                 debug!("Received text message, length: {}", text.len());
-                
+
                 // Parse batch
                 let batch: Batch = match serde_json::from_str(&text) {
                     Ok(b) => b,
@@ -37,7 +95,7 @@ async fn handle_socket(socket: WebSocket, config: CollectorConfig) {
                             error_message: Some(format!("Invalid batch format: {}", e)),
                             received_at: chrono::Utc::now().timestamp_millis(),
                         };
-                        
+
                         if let Ok(response_json) = serde_json::to_string(&error_response) {
                             let _ = sender.send(Message::Text(response_json)).await;
                         }
@@ -46,7 +104,10 @@ async fn handle_socket(socket: WebSocket, config: CollectorConfig) {
                 };
 
                 let batch_id = batch.batch_id.clone();
-                info!("Received batch: {} with {} events", batch_id, batch.event_count);
+                info!(
+                    "Received batch: {} with {} events",
+                    batch_id, batch.event_count
+                );
 
                 // Process batch
                 let response = match processor.process(batch).await {
@@ -104,4 +165,40 @@ async fn handle_socket(socket: WebSocket, config: CollectorConfig) {
     }
 
     info!("WebSocket connection closed");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{extract_bearer_token, extract_query_token};
+    use axum::{
+        extract::Query,
+        http::{header::AUTHORIZATION, HeaderMap, HeaderValue},
+    };
+    use std::collections::HashMap;
+
+    #[test]
+    fn extracts_bearer_token() {
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer my-token"));
+
+        assert_eq!(extract_bearer_token(&headers), Some("my-token"));
+    }
+
+    #[test]
+    fn ignores_invalid_authorization_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, HeaderValue::from_static("Basic abc"));
+
+        assert_eq!(extract_bearer_token(&headers), None);
+    }
+
+    #[test]
+    fn extracts_query_token() {
+        let query = Query(HashMap::from([(
+            String::from("token"),
+            String::from("abc"),
+        )]));
+
+        assert_eq!(extract_query_token(Some(&query)), Some("abc"));
+    }
 }

@@ -34,8 +34,6 @@ impl WebSocketClient {
     async fn connect(&mut self) -> Result<()> {
         info!("Connecting to collector: {}", self.config.endpoint);
 
-        let mut request = self.config.endpoint.parse::<http::Uri>()?;
-        
         // Add authorization header if token is provided
         let mut request_builder = http::Request::builder()
             .uri(&self.config.endpoint);
@@ -45,7 +43,11 @@ impl WebSocketClient {
                 .header("Authorization", format!("Bearer {}", token));
         }
 
-        let (ws_stream, response) = connect_async(&self.config.endpoint).await
+        let request = request_builder
+            .body(())
+            .context("Failed to build WebSocket request")?;
+
+        let (ws_stream, response) = connect_async(request).await
             .context("Failed to connect to WebSocket")?;
 
         debug!("WebSocket connected, response: {:?}", response.status());
@@ -124,7 +126,19 @@ impl WebSocketClient {
     pub async fn test_connection(config: &CollectorSettings) -> Result<()> {
         info!("Testing connection to: {}", config.endpoint);
 
-        let (ws_stream, response) = connect_async(&config.endpoint).await
+        let mut request_builder = http::Request::builder()
+            .uri(&config.endpoint);
+
+        if let Some(token) = &config.auth_token {
+            request_builder = request_builder
+                .header("Authorization", format!("Bearer {}", token));
+        }
+
+        let request = request_builder
+            .body(())
+            .context("Failed to build WebSocket request")?;
+
+        let (ws_stream, response) = connect_async(request).await
             .context("Failed to connect to WebSocket")?;
 
         info!("Connection successful, status: {:?}", response.status());

@@ -13,3 +13,6 @@ prost-types = "0.12"
 
 [build-dependencies]
 prost-build = "0.12"
+
+[features]
+grpc = []

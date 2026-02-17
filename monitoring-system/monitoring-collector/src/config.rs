@@ -22,13 +22,13 @@ pub struct ServerSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthSettings {
     #[serde(default = "default_auth_mode")]
-    pub mode: String,  // "token", "mtls", or "hybrid"
+    pub mode: String, // "token", "mtls", or "hybrid"
     pub token_secret: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageSettings {
-    pub backend: String,  // "clickhouse", "postgres", "s3", "console"
+    pub backend: String, // "clickhouse", "postgres", "s3", "console"
     pub clickhouse_url: Option<String>,
     pub postgres_url: Option<String>,
     pub s3_bucket: Option<String>,
@@ -59,9 +59,9 @@ impl CollectorConfig {
     pub fn load(path: &Path) -> Result<Self> {
         let config_str = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {:?}", path))?;
-        
-        let mut config: CollectorConfig = toml::from_str(&config_str)
-            .context("Failed to parse config file")?;
+
+        let mut config: CollectorConfig =
+            toml::from_str(&config_str).context("Failed to parse config file")?;
 
         // Expand environment variables
         if let Some(secret) = &config.auth.token_secret {
@@ -69,6 +69,19 @@ impl CollectorConfig {
                 let var_name = &secret[2..secret.len() - 1];
                 config.auth.token_secret = std::env::var(var_name).ok();
             }
+        }
+
+        if matches!(config.auth.mode.as_str(), "token" | "hybrid")
+            && config
+                .auth
+                .token_secret
+                .as_deref()
+                .is_none_or(str::is_empty)
+        {
+            anyhow::bail!(
+                "auth.token_secret is required when auth.mode is '{}'",
+                config.auth.mode
+            );
         }
 
         Ok(config)
