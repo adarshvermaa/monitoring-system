@@ -9,6 +9,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod config;
 mod api;
 mod auth;
+mod pipeline;
 mod processor;
 mod storage;
 

@@ -1,6 +1,6 @@
 // Test data generator for development and testing
 
-use monitoring_common::{Event, LogEvent, LogLevel, MetricEvent, MetricType, TrafficEvent, Protocol};
+use crate::{Event, LogEvent, LogLevel, MetricEvent, MetricType, Protocol, TrafficEvent};
 use std::collections::HashMap;
 
 /// Generate sample log events
@@ -36,10 +36,7 @@ pub fn generate_log_events(count: usize) -> Vec<Event> {
             },
             message: format!("{} ({})", messages[i % messages.len()], i),
             fields,
-            tags: vec![
-                "env:test".to_string(),
-                format!("instance:{}", i % 3),
-            ],
+            tags: vec!["env:test".to_string(), format!("instance:{}", i % 3)],
         });
         events.push(event);
     }
@@ -53,16 +50,14 @@ pub fn generate_metric_events(count: usize) -> Vec<Event> {
 
     for i in 0..count {
         let timestamp = chrono::Utc::now().timestamp_millis() + (i as i64 * 10000);
-        
+
         // CPU metric
         let cpu_event = Event::Metric(MetricEvent {
             timestamp,
             name: "system.cpu.usage".to_string(),
             value: 20.0 + (i as f64 % 60.0),
             metric_type: MetricType::Gauge,
-            tags: HashMap::from([
-                ("host".to_string(), format!("host-{}", i % 5)),
-            ]),
+            tags: HashMap::from([("host".to_string(), format!("host-{}", i % 5))]),
             unit: Some("%".to_string()),
         });
         events.push(cpu_event);
@@ -73,9 +68,7 @@ pub fn generate_metric_events(count: usize) -> Vec<Event> {
             name: "system.mem.usage".to_string(),
             value: 50.0 + (i as f64 % 40.0),
             metric_type: MetricType::Gauge,
-            tags: HashMap::from([
-                ("host".to_string(), format!("host-{}", i % 5)),
-            ]),
+            tags: HashMap::from([("host".to_string(), format!("host-{}", i % 5))]),
             unit: Some("%".to_string()),
         });
         events.push(mem_event);
@@ -101,8 +94,13 @@ pub fn generate_metric_events(count: usize) -> Vec<Event> {
 /// Generate sample traffic events
 pub fn generate_traffic_events(count: usize) -> Vec<Event> {
     let mut events = Vec::with_capacity(count);
-    let protocols = vec![Protocol::HTTP, Protocol::HTTPS, Protocol::TCP, Protocol::UDP];
-    
+    let protocols = vec![
+        Protocol::HTTP,
+        Protocol::HTTPS,
+        Protocol::TCP,
+        Protocol::UDP,
+    ];
+
     for i in 0..count {
         let event = Event::Traffic(TrafficEvent {
             timestamp: chrono::Utc::now().timestamp_millis() + (i as i64 * 100),
@@ -135,7 +133,7 @@ mod tests {
     fn test_generate_log_events() {
         let events = generate_log_events(10);
         assert_eq!(events.len(), 10);
-        
+
         for event in events {
             match event {
                 Event::Log(log) => {
@@ -151,7 +149,7 @@ mod tests {
     fn test_generate_metric_events() {
         let events = generate_metric_events(5);
         assert_eq!(events.len(), 15); // 3 metrics per iteration
-        
+
         for event in events {
             match event {
                 Event::Metric(metric) => {
@@ -167,7 +165,7 @@ mod tests {
     fn test_generate_traffic_events() {
         let events = generate_traffic_events(10);
         assert_eq!(events.len(), 10);
-        
+
         for event in events {
             match event {
                 Event::Traffic(traffic) => {

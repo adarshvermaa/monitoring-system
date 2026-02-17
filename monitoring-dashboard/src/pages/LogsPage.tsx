@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Filter, Download, RefreshCw } from 'lucide-react';
+import { Search, Download, RefreshCw } from 'lucide-react';
 import { apiService } from '../services/api';
 import type { LogEvent } from '../types';
 import { formatDistanceToNow } from 'date-fns';

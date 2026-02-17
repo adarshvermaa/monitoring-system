@@ -43,7 +43,6 @@ serde_json = "1.0"
 rustls = "0.22"
 tokio-rustls = "0.25"
 rustls-pemfile = "2.0"
-axum-server = { version = "0.6", features = ["tls-rustls"] }
 
 # Auth
 jsonwebtoken = "9.2"
